@@ -10,9 +10,8 @@ Scripts to backup videos from your UDM pro to AWS S3.
 
 3. Run `prepare_host.sh` to setup/start the virtual environment, and add a cronjob to run main.py twice daily.
 
-
-
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account | tr -d '"')
-AWS_REGION=$(aws configure get region)
-cdk bootstrap aws://${ACCOUNT_ID}/${AWS_REGION}
-cdk deploy --parameters ProjectName=mlflow --require-approval never
+## TODO: 
+- why isn't single file uploading
+- enable bucket versioning
+- upload logger to bucket
+- upload all found files of the extension
