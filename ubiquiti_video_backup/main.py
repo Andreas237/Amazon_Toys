@@ -25,10 +25,8 @@ logger.addHandler(fileHandler)
 
 if __name__ == "__main__":
     vm = VideoManager()
-    files_on_host_dict = vm.find_video_files(extension="*.sh",root_directory="/home/ace/work/amazons/")
+    files_on_host_dict = vm.find_video_files(extension="*.sh",root_directory="/Users/ace/work/Amazon_Toys/ubiquiti_video_backup")
     s3m = S3Manager()
     s3m._compare_bucket_contents_with_tracked_files(files_on_host=files_on_host_dict.keys())
-    # logging.debug(f'File for upload: {file_for_upload}')
-    # s3m.upload_file_list(files=file_for_upload)
+    s3m.upload_file_list(files=files_on_host_dict)
     logging.debug(f's3m upload complete!')
-    print(f'run completed')
