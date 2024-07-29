@@ -79,7 +79,8 @@ class S3Manager:
 
     def upload_file_list(self, files: dict = None):
         logger.debug(f'attempting to upload file list {files}')
-        files_for_upload = self._compare_bucket_contents_with_tracked_files(files.keys())
+        keys_for_upload = self._compare_bucket_contents_with_tracked_files(files.keys())
+        files_for_upload = files[]
         try:
             for k,v in files_for_upload.items():
                 object_name = os.path.basename(v)
