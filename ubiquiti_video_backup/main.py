@@ -27,6 +27,6 @@ if __name__ == "__main__":
     vm = VideoManager()
     files_on_host_dict = vm.find_video_files()
     s3m = S3Manager()
-    s3m._compare_bucket_contents_with_tracked_files(files_on_host=files_on_host_dict.keys())
     s3m.upload_file_list(files=files_on_host_dict)
+    #TODO: upload log file
     logging.debug(f's3m upload complete!')

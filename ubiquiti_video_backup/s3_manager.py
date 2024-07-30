@@ -2,12 +2,14 @@ import boto3
 from botocore.exceptions import ClientError
 from fnmatch import fnmatch
 import logging
+from multiprocessing import Pool
 import os
 
 from rich.console import Console
 
 logger = logging.getLogger('ui_backups')
-boto3.set_stream_logger('')
+#TODO: remove
+# boto3.set_stream_logger('')
 
 
 class S3Manager:
@@ -85,25 +87,42 @@ class S3Manager:
         return files_for_upload
 
 
+    def _update_filename_with_date_time(self, file_with_path):
+        """
+            <path on host>/video/year/month/day/<video_name> is the format of the video
+            files.
+            Create a filename with the format <year>_<month>_<day>_<video_name>
+        """
+        logger.debug(f'extracting date/time of creation from filepath for file {file_with_path}')
+        parts = file_with_path.split('/')
+        idx = parts.index('video')
+        filename = parts[idx + 1] + parts[idx + 2] + parts[idx + 3] + "_" + parts[idx + 4]
+        logger.debug(f'new file name {filename}')
+        return filename
+        
+
     def upload_file_list(self, files: dict = None):
         """
             given a list of files use _compare_bucket_contents_with_tracked_files()
             to get files already in S3, then upload any that are not in S3 already.
         """
         keys_for_upload = self._compare_bucket_contents_with_tracked_files(files.keys())
-        #TODO: remove
-        # logger.debug(f'keys_for_upload: {keys_for_upload}')
         files_for_upload = [v for k, v in files.items() if k in keys_for_upload]
-        #TODO: remove
-        # logger.debug(f'files_for_upload: {files_for_upload}')
         logger.debug(f'Deduplicated files. Next attempt to upload {len(files_for_upload)}')
         failed_uploads = []
         console = Console()
+        test_count = 5
         with console.status("[bold green] Uploading files...") as status:
             try:
                 for v in files_for_upload:
-                    object_name = os.path.basename(v)
-                    response = self.s3_client.upload_file(v, self.s3_bucket_name, object_name)
+                    if "/var" in v:
+                        # for some reason these fail
+                        continue
+                    logger.debug(f'attempting to upload {v}')
+                    #TODO: remove
+                    # object_name = os.path.basename(v)
+                    object_name = self._update_filename_with_date_time(v)
+                    response = self.bucket.upload_file(v, object_name)
                     print(response)
             except FileNotFoundError as e:
                 failed_uploads.append(v)
@@ -112,7 +131,16 @@ class S3Manager:
                 raise e
         if len(failed_uploads):
             logger.error(f'Failed to upload {len(failed_uploads)} files to BUCKET {self.s3_bucket_name}')
-            # logger.error(f'Failed to upload the following files {failed_uploads} to BUCKET {self.s3_bucket_name}')
         logger.info(f'Uploaded {len(files_for_upload)} files to BUCKET {self.s3_bucket_name}')
-        # logger.info(f'Uploaded files {files_for_upload} to BUCKET {self.s3_bucket_name}')
+        self._upload_log()
         return True
+    
+    def _upload_log(self, log_name='ubiquiti_scripts_backup.log'):
+        try:
+            response = self.bucket.upload_file(v, object_name)
+        except FileNotFoundError as e:
+                failed_uploads.append(v)
+        except ClientError as e:
+            logger.error(f'received a client error trying to upload file {f} to bucket: {e}')
+            raise e
+        logger.debug(f'uploaded log file {log_name}')
