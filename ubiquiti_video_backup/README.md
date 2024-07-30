@@ -8,10 +8,21 @@ Scripts to backup videos from your UDM pro to AWS S3.
 
 2. Run `aws configure` to enter the credentials necessary to communicate with AWS' APIs in your account.
 
-3. Run `prepare_host.sh` to setup/start the virtual environment, and add a cronjob to run main.py twice daily.
+3. Setup Python environment
+```
+    npm install -g aws-cdk@2.51.1
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip3 install -r requirements.txt
+    deactivate
+```
 
-## TODO: 
-- why isn't single file uploading
-- enable bucket versioning
-- upload logger to bucket
-- upload all found files of the extension
+4. Set an environment variable for the bucket name that will hold the files.
+`export S3_BUCKET_NAME=<your_bucket_name_here>`
+
+
+5. Set a crontab, place the app in the directory in which you need it, set the DIR where the crontab should be run. This runs the script every hour.
+```
+HOME=/where/the/app/is
+0 * * * * pushd $HOME && ./run.sh && popd
+```

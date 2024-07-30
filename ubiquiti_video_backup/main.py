@@ -8,7 +8,7 @@ from s3_manager import S3Manager
 logger = logging.getLogger('ui_backups')
 logger.setLevel(logging.DEBUG)
 
-logFormatter = logging.Formatter('%(asctime)s\t[%(levelname)s]\t%(filename)s|%(module)s|%(funcName)s\t%(message)s')
+logFormatter = logging.Formatter('\n\n%(asctime)s\t[%(levelname)s]\t%(filename)s|%(module)s|%(funcName)s\t%(message)s')
 
 consoleHandler = logging.StreamHandler(sys.stdout)
 consoleHandler.setFormatter(logFormatter)
@@ -25,7 +25,7 @@ logger.addHandler(fileHandler)
 
 if __name__ == "__main__":
     vm = VideoManager()
-    files_on_host_dict = vm.find_video_files(extension="*.sh",root_directory="/Users/ace/work/Amazon_Toys/ubiquiti_video_backup")
+    files_on_host_dict = vm.find_video_files()
     s3m = S3Manager()
     s3m._compare_bucket_contents_with_tracked_files(files_on_host=files_on_host_dict.keys())
     s3m.upload_file_list(files=files_on_host_dict)

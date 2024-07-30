@@ -4,7 +4,10 @@ from fnmatch import fnmatch
 import logging
 import os
 
+from rich.console import Console
+
 logger = logging.getLogger('ui_backups')
+boto3.set_stream_logger('')
 
 
 class S3Manager:
@@ -38,15 +41,18 @@ class S3Manager:
                 logger.error(f'received a client error trying to create the bucket: {e}')
                 logger.error(f'bucket name: {self.s3_bucket_name}')
                 raise e
-        logger.debug(f'Create bucket with name {self.s3_bucket_name}')
+            logger.debug(f'Created bucket with name {self.s3_bucket_name}')
         return True
 
 
     def _check_if_bucket_exists(self,) -> bool:
+        buckets = self.s3_resource.buckets.all()
+        logger.debug(f'Found {len(list(buckets))} buckets')
         for bucket in self.s3_resource.buckets.all():
-            logger.debug(f'bucket name: {bucket.name}')
             if bucket.name == self.s3_bucket_name:
+                logger.debug(f'{self.s3_bucket_name} exists.')
                 return True
+        logger.debug(f'{self.s3_bucket_name} does NOT exist.')
         return False
         
     
@@ -75,7 +81,7 @@ class S3Manager:
         files_in_s3 = [i.key for i in bucket_contents]
         logger.debug(f'files in s3: {files_in_s3}')
         files_for_upload = list(set(files_on_host) - set(files_in_s3) )
-        logger.debug(f'files for upload: {files_for_upload}')
+        logger.debug(f'Found {len(files_for_upload)} files for upload')
         return files_for_upload
 
 
@@ -84,17 +90,29 @@ class S3Manager:
             given a list of files use _compare_bucket_contents_with_tracked_files()
             to get files already in S3, then upload any that are not in S3 already.
         """
-        logger.debug(f'attempting to upload file list {files}')
         keys_for_upload = self._compare_bucket_contents_with_tracked_files(files.keys())
-        logger.debug(f'keys_for_upload: {keys_for_upload}')
-        files_for_upload = [v for k, v in files.items() if v in keys_for_upload]
-        logger.debug(f'files_for_upload: {files_for_upload}')
-        try:
-            for v in files_for_upload:
-                object_name = os.path.basename(v)
-                response = self.s3_client.upload_file(v, self.s3_bucket_name, object_name)
-        except ClientError as e:
-            logger.error(f'received a client error trying to upload file {f} to bucket: {e}')
-            raise e
-        logger.info(f'uploaded files {files_for_upload}')
+        #TODO: remove
+        # logger.debug(f'keys_for_upload: {keys_for_upload}')
+        files_for_upload = [v for k, v in files.items() if k in keys_for_upload]
+        #TODO: remove
+        # logger.debug(f'files_for_upload: {files_for_upload}')
+        logger.debug(f'Deduplicated files. Next attempt to upload {len(files_for_upload)}')
+        failed_uploads = []
+        console = Console()
+        with console.status("[bold green] Uploading files...") as status:
+            try:
+                for v in files_for_upload:
+                    object_name = os.path.basename(v)
+                    response = self.s3_client.upload_file(v, self.s3_bucket_name, object_name)
+                    print(response)
+            except FileNotFoundError as e:
+                failed_uploads.append(v)
+            except ClientError as e:
+                logger.error(f'received a client error trying to upload file {f} to bucket: {e}')
+                raise e
+        if len(failed_uploads):
+            logger.error(f'Failed to upload {len(failed_uploads)} files to BUCKET {self.s3_bucket_name}')
+            # logger.error(f'Failed to upload the following files {failed_uploads} to BUCKET {self.s3_bucket_name}')
+        logger.info(f'Uploaded {len(files_for_upload)} files to BUCKET {self.s3_bucket_name}')
+        # logger.info(f'Uploaded files {files_for_upload} to BUCKET {self.s3_bucket_name}')
         return True
