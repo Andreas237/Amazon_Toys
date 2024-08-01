@@ -37,12 +37,6 @@ class S3Manager:
                 logger.error(f'received a client error trying to create the bucket: {e}')
                 logger.error(f'bucket name: {self.s3_bucket_name}')
                 raise e
-            try:
-                self.bucket.Versioning().enable()
-            except ClientError as e:
-                logger.error(f'received a client error trying to create the bucket: {e}')
-                logger.error(f'bucket name: {self.s3_bucket_name}')
-                raise e
             logger.debug(f'Created bucket with name {self.s3_bucket_name}')
         return True
 
