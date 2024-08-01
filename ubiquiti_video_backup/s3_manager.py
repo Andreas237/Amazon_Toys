@@ -27,6 +27,17 @@ class S3Manager:
         logger.info(f'Configured self.')
 
 
+    def _check_if_bucket_exists(self,) -> bool:
+        buckets = self.s3_resource.buckets.all()
+        logger.debug(f'Found {len(list(buckets))} buckets')
+        for bucket in self.s3_resource.buckets.all():
+            if bucket.name == self.s3_bucket_name:
+                logger.debug(f'{self.s3_bucket_name} exists.')
+                return True
+        logger.debug(f'{self.s3_bucket_name} does NOT exist.')
+        return False
+        
+
     def _create_s3_bucket(self,) -> bool:
         if not self._check_if_bucket_exists():
             try:
@@ -39,18 +50,7 @@ class S3Manager:
                 raise e
             logger.debug(f'Created bucket with name {self.s3_bucket_name}')
         return True
-
-
-    def _check_if_bucket_exists(self,) -> bool:
-        buckets = self.s3_resource.buckets.all()
-        logger.debug(f'Found {len(list(buckets))} buckets')
-        for bucket in self.s3_resource.buckets.all():
-            if bucket.name == self.s3_bucket_name:
-                logger.debug(f'{self.s3_bucket_name} exists.')
-                return True
-        logger.debug(f'{self.s3_bucket_name} does NOT exist.')
-        return False
-        
+    
     
     def _get_bucket_contents(self, prefix=None) -> list:
         contents = None
@@ -67,21 +67,8 @@ class S3Manager:
         logger.debug(f'list of items in {self.s3_resource}:\n{contents}')
         return contents
 
-
-    def _compare_bucket_contents_with_tracked_files(self, files_on_host: list = None) -> list:
-        """
-            Get the list of files matching the extensions. Return a list of files for upload
-        """
-        files_on_host = list(files_on_host)
-        bucket_contents = self._get_bucket_contents()
-        files_in_s3 = [i.key for i in bucket_contents]
-        logger.debug(f'files in s3: {files_in_s3}')
-        files_for_upload = list(set(files_on_host) - set(files_in_s3) )
-        logger.debug(f'Found {len(files_for_upload)} files for upload')
-        return files_for_upload
-
-
-    def _update_filename_with_date_time(self, file_with_path):
+    
+    def _get_filename_with_date_time(self, file_with_path):
         """
             <path on host>/video/year/month/day/<video_name> is the format of the video
             files.
@@ -93,48 +80,57 @@ class S3Manager:
         filename = parts[idx + 1] + parts[idx + 2] + parts[idx + 3] + "_" + parts[idx + 4]
         logger.debug(f'new file name {filename}')
         return filename
-        
 
-    def upload_file_list(self, files: dict = None):
-        """
-            given a list of files use _compare_bucket_contents_with_tracked_files()
-            to get files already in S3, then upload any that are not in S3 already.
-        """
-        keys_for_upload = self._compare_bucket_contents_with_tracked_files(files.keys())
-        files_for_upload = [v for k, v in files.items() if k in keys_for_upload]
-        logger.debug(f'Deduplicated files. Next attempt to upload {len(files_for_upload)}')
-        failed_uploads = []
-        console = Console()
-        test_count = 5
-        with console.status("[bold green] Uploading files...") as status:
-            try:
-                for v in files_for_upload:
-                    if "/var" in v:
-                        # for some reason these fail
-                        continue
-                    logger.debug(f'attempting to upload {v}')
-                    #TODO: remove
-                    # object_name = os.path.basename(v)
-                    object_name = self._update_filename_with_date_time(v)
-                    response = self.bucket.upload_file(v, object_name)
-                    print(response)
-            except FileNotFoundError as e:
-                failed_uploads.append(v)
-            except ClientError as e:
-                logger.error(f'received a client error trying to upload file {f} to bucket: {e}')
-                raise e
-        if len(failed_uploads):
-            logger.error(f'Failed to upload {len(failed_uploads)} files to BUCKET {self.s3_bucket_name}')
-        logger.info(f'Uploaded {len(files_for_upload)} files to BUCKET {self.s3_bucket_name}')
-        self._upload_log()
-        return True
-    
+
+    def _reduce_dict_of_files_for_upload(self, files_on_host_dict: dict = None) -> dict[str, str]:
+            """
+                Removes keys that exist in the target bucket from the dict of files on host
+                returns the resulting dict.
+            """
+            logger.debug(f'before removing keys: {files_on_host_dict}')
+            bucket_contents = self._get_bucket_contents()
+            keys_in_s3 = [i.key for i in bucket_contents]
+            for k in keys_in_s3: files_on_host_dict.pop(k, None)
+            logger.debug(f'after removing keys: {files_on_host_dict}')
+
+
     def _upload_log(self, log_name='ubiquiti_scripts_backup.log'):
         try:
-            response = self.bucket.upload_file(v, object_name)
+            response = self.bucket.upload_file(log_name, os.path.basename(log_name))
         except FileNotFoundError as e:
                 failed_uploads.append(v)
         except ClientError as e:
             logger.error(f'received a client error trying to upload file {f} to bucket: {e}')
             raise e
         logger.debug(f'uploaded log file {log_name}')
+
+
+    def upload_file_list(self, files: dict = None):
+        """
+            given a list of files, remove keys for files already in S3.
+            Upload any remaining files to s3.
+        """
+        self._reduce_dict_of_files_for_upload(files)
+        logger.debug(f'Deduplicated files. Next attempt to upload {len(files)}')
+        failed_uploads = []
+        console = Console()
+        with console.status("[bold green] Uploading files...") as status:
+            try:
+                for k, v in files.items():
+                    if "/var" in v:
+                        # for some reason these fail
+                        continue
+                    fname = self._get_filename_with_date_time(v)
+                    logger.debug(f'attempting to upload key = {fname}\t v = {v}')
+                    response = self.bucket.upload_file(v, fname)
+                    logger.debug(f'response for file {fname} {response}')
+            except FileNotFoundError as e:
+                failed_uploads.append(v)
+            except ClientError as e:
+                logger.error(f'received a client error trying to upload file {v} to bucket: {e}')
+                raise e
+        if len(failed_uploads):
+            logger.error(f'Failed to upload {len(failed_uploads)} files to BUCKET {self.s3_bucket_name}')
+        logger.info(f'Uploaded {len(files) - len(failed_uploads)} files to BUCKET {self.s3_bucket_name}')
+        self._upload_log()
+        return True
