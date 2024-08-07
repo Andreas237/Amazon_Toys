@@ -130,7 +130,7 @@ class S3Manager:
         try:
             response = self.bucket.upload_file(log_name, os.path.basename(log_name))
         except FileNotFoundError as e:
-                failed_uploads.append(v)
+                logger.error(f'Missing log file!  Failed to upload log file with exception {e}')
         except ClientError as e:
             logger.error(f'received a client error trying to upload file {f} to bucket: {e}')
             raise e
