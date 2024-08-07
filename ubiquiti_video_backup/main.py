@@ -1,5 +1,6 @@
 import logging
 import sys
+from time import time
 
 from video_file_manager import VideoManager
 from s3_manager import S3Manager
@@ -24,10 +25,12 @@ logger.addHandler(fileHandler)
 
 
 if __name__ == "__main__":
+    start_time = time()
     vm = VideoManager()
     files_list = vm.get_video_files_list()
     
     s3m = S3Manager()
     s3m.upload_file_list(files=files_list)
-    
-    logging.debug(f's3m upload complete!')
+    end_time = time()
+
+    logger.debug(f's3m upload complete! total execution time was {end_time - start_time} seconds.')
