@@ -16,7 +16,7 @@ class VideoManager:
         self.log_file = None
         logger.debug(f'finished setting up')
 
-    def find_video_files(self,extension="*.ubv", root_directory="/") -> None:
+    def find_video_files(self,extension="*.ubv", root_directory="/") -> dict[str,str]:
         console = Console()
         with console.status("[bold green] Searching for files...") as status:
             for root, dirs, fs in os.walk(root_directory):
@@ -28,6 +28,11 @@ class VideoManager:
         logger.debug(f'Found {len(self.file_dict)} files in search.')
         # logger.debug(f'file dict:\n{self.file_dict}')
         return self.file_dict
+
+    def get_video_files_list(self,extension="*.ubv", root_directory="/") -> list[str]:
+        if len(self.files) == 0:
+            self.find_video_files(extension=extension, root_directory=root_directory)
+        return self.files
     
 
 if __name__ == "__main__":

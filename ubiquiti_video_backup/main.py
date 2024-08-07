@@ -25,8 +25,9 @@ logger.addHandler(fileHandler)
 
 if __name__ == "__main__":
     vm = VideoManager()
-    files_on_host_dict = vm.find_video_files()
-    logger.debug(files_on_host_dict)
+    files_list = vm.get_video_files_list()
+    
     s3m = S3Manager()
-    s3m.upload_file_list(files=files_on_host_dict)
+    s3m.upload_file_list(files=files_list)
+    
     logging.debug(f's3m upload complete!')

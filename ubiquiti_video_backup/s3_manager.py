@@ -2,15 +2,19 @@ import boto3
 from botocore.exceptions import ClientError
 from fnmatch import fnmatch
 import logging
-from multiprocessing import Pool
+import multiprocessing
 import os
 
 from rich.console import Console
 
 logger = logging.getLogger('ui_backups')
 #TODO: remove
-# boto3.set_stream_logger('')
+# if logging.getLevelName(logger.level) == "DEBUG":
+#     boto3.set_stream_logger('')
 
+def take(n:int , iterable) -> list:
+         from itertools import islice
+         return list(islice(iterable, n))
 
 class S3Manager:
     s3_bucket_name = None
@@ -74,25 +78,53 @@ class S3Manager:
             files.
             Create a filename with the format <year>_<month>_<day>_<video_name>
         """
-        logger.debug(f'extracting date/time of creation from filepath for file {file_with_path}')
         parts = file_with_path.split('/')
         idx = parts.index('video')
         filename = parts[idx + 1] + parts[idx + 2] + parts[idx + 3] + "_" + parts[idx + 4]
-        logger.debug(f'new file name {filename}')
         return filename
 
+    def _files_list_to_dict(self, files: list[str], files_dict: dict[str,str]) -> None:
+        """
+            Given a list of filepaths as strings, update files_dict(dict) with the
+            a key of filepath and value of self._get_filename_with_date_time()
+        """
+        for f in files:
+            if '/var' in f:
+                continue
+            # files_dict[f] = self._get_filename_with_date_time(f)
+            files_dict[self._get_filename_with_date_time(f)] = f
+        return files_dict
+    
+    def _mp_files_list_to_dict(self, files: list[str] = None) -> dict[str,str]:
+        """
+            Create a dictionary of the files on host in the format needed for upload:
+            {filepath: desire file name}
+        """
+        ctx = multiprocessing.get_context()
+        logger.debug(f'processing a list of {len(files)} into a dictionary.')
+        manager = multiprocessing.Manager()
+        files_dict = manager.dict()
+        cpus = multiprocessing.cpu_count() // 2
+        logger.debug(f'multiprocessing with {cpus} CPU cores')
+        with ctx.Pool(processes=cpus) as p:
+            # files_dict = p.apply(self._files_list_to_dict, args=(files, files_dict,))
+            # p.join()
+            p = multiprocessing.Process(target=self._files_list_to_dict, args=(files, files_dict,))
+            p.start()
+            p.join()
+        logger.debug(f'processing to dict of {len(files_dict)} records complete!')
+        return files_dict
 
     def _reduce_dict_of_files_for_upload(self, files_on_host_dict: dict = None) -> dict[str, str]:
             """
                 Removes keys that exist in the target bucket from the dict of files on host
                 returns the resulting dict.
             """
-            logger.debug(f'before removing keys: {files_on_host_dict}')
+            logger.debug(f'before removing keys: {len(files_on_host_dict)}')
             bucket_contents = self._get_bucket_contents()
             keys_in_s3 = [i.key for i in bucket_contents]
             for k in keys_in_s3: files_on_host_dict.pop(k, None)
-            logger.debug(f'after removing keys: {files_on_host_dict}')
-
+            logger.debug(f'after removing keys: {len(files_on_host_dict)}')
 
     def _upload_log(self, log_name='ubiquiti_scripts_backup.log'):
         try:
@@ -105,12 +137,14 @@ class S3Manager:
         logger.debug(f'uploaded log file {log_name}')
 
 
-    def upload_file_list(self, files: dict = None):
+    def upload_file_list(self, files: list = None):
         """
             given a list of files, remove keys for files already in S3.
             Upload any remaining files to s3.
         """
+        files = self._mp_files_list_to_dict(files)
         self._reduce_dict_of_files_for_upload(files)
+        logging.error(f'slice of dict: {take(5, files)}')
         logger.debug(f'Deduplicated files. Next attempt to upload {len(files)}')
         failed_uploads = []
         console = Console()
@@ -118,12 +152,9 @@ class S3Manager:
             try:
                 for k, v in files.items():
                     if "/var" in v:
-                        # for some reason these fail
                         continue
-                    fname = self._get_filename_with_date_time(v)
-                    logger.debug(f'attempting to upload key = {fname}\t v = {v}')
-                    response = self.bucket.upload_file(v, fname)
-                    logger.debug(f'response for file {fname} {response}')
+                    response = self.bucket.upload_file(v, k)
+                    logger.debug(f'response for file {k} {response}')
             except FileNotFoundError as e:
                 failed_uploads.append(v)
             except ClientError as e:
