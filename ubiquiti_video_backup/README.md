@@ -24,5 +24,5 @@ Scripts to backup videos from your UDM pro to AWS S3.
 5. Set a crontab, place the app in the directory in which you need it, set the DIR where the crontab should be run. This runs the script every hour.
 ```
 HOME=/where/the/app/is
-0 * * * * pushd $HOME && ./run.sh && popd
+0 1-23/2 * * * /root/ubiquiti_video_backup/run.sh
 ```

@@ -156,10 +156,14 @@ class S3Manager:
                     response = self.bucket.upload_file(v, k)
                     logger.debug(f'response for file {k} {response}')
             except FileNotFoundError as e:
+                logger.error(f'FileNotFoundError-- failed to upload file {v} to bucket: {e}')
                 failed_uploads.append(v)
             except ClientError as e:
-                logger.error(f'received a client error trying to upload file {v} to bucket: {e}')
-                raise e
+                logger.error(f'ClientError-- failed to upload file {v} to bucket: {e}')
+                failed_uploads.append(v)
+            except S3UploadFailedError as e:
+                logger.error(f'S3UploadFailedError-- failed to upload file {v} to bucket: {e}')
+                failed_uploads.append(v)
         if len(failed_uploads):
             logger.error(f'Failed to upload {len(failed_uploads)} files to BUCKET {self.s3_bucket_name}')
         logger.info(f'Uploaded {len(files) - len(failed_uploads)} files to BUCKET {self.s3_bucket_name}')
