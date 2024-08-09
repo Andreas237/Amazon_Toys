@@ -68,7 +68,7 @@ class S3Manager:
         except ClientError as e:
             logger.error(f'received a client error trying to access bucket contents: {e}')
             raise e
-        logger.debug(f'list of items in {self.s3_resource}:\n{contents}')
+        logger.debug(f'found {len(contents)} in S3 bucket.')
         return contents
 
     
