@@ -161,7 +161,7 @@ class S3Manager:
             except ClientError as e:
                 logger.error(f'ClientError-- failed to upload file {v} to bucket: {e}')
                 failed_uploads.append(v)
-            except S3UploadFailedError as e:
+            except boto3.exceptions.S3UploadFailedError as e:
                 logger.error(f'S3UploadFailedError-- failed to upload file {v} to bucket: {e}')
                 failed_uploads.append(v)
         if len(failed_uploads):
