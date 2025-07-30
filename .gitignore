@@ -1,3 +1,9 @@
+# Specific to each project
+get_call_option_bsm/*
+!get_call_option_bsm/lambda_function.pybuilder
+!get_call_option_bsm/prepare_packages_layer.sh
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
